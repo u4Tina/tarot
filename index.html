@@ -235,7 +235,7 @@
         const suitInfo = suitMeanings[suit];
         
         if (suitInfo) {
-            let baseText = `屬於 <strong>${suitInfo.element}</strong>。關於「${rank}」的狀態：`;
+            let baseText = `屬於 <strong>${suitInfo.element}</strong>。狀態：`;
             let detailText = isReversed ? suitInfo.reversed : suitInfo.upright;
             return baseText + detailText + ` `;
         }
