@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>專業韋特塔羅占卜系統</title>
+    <style>
+        :root {
+            --gold: #d4af37;
+            --bg-dark: #1a1a20;
+            --card-bg: #2a2a35;
+        }
+
+        body {
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+            background-color: var(--bg-dark);
+            color: #f4e4bc;
+            margin: 0;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* 左側選單 */
+        #sidebar {
+            width: 250px;
+            background-color: #0f0f14;
+            padding: 30px 20px;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+        }
+
+        #sidebar h1 {
+            color: var(--gold);
+            font-size: 1.4em;
+            text-align: center;
+            border-bottom: 1px solid #d4af3744;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+        }
+
+        .mode-btn {
+            background: transparent;
+            color: #888;
+            border: 1px solid #333;
+            padding: 12px;
+            margin: 8px 0;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: 0.3s;
+        }
+
+        .mode-btn:hover { color: var(--gold); border-color: var(--gold); }
+        .mode-btn.active { background: var(--gold); color: #000; font-weight: bold; }
+
+        /* 主內容區 */
+        #main-content {
+            flex-grow: 1;
+            padding: 40px;
+            text-align: center;
+            overflow-y: auto;
+        }
+
+        /* 按鈕區 */
+        .action-area {
+            margin: 20px 0 40px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .main-btn {
+            padding: 12px 40px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 30px;
+            transition: 0.3s;
+            border: 2px solid var(--gold);
+        }
+
+        #shuffle-btn { background: transparent; color: var(--gold); }
+        #draw-btn { background: var(--gold); color: #1a1a20; display: none; }
+        
+        .main-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* 卡牌容器 */
+        #cards-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 30px;
+        }
+
+        .card-wrapper {
+            width: 200px;
+            perspective: 1000px;
+            background: rgba(42, 42, 53, 0.4);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #d4af3722;
+        }
+
+        .tarot-card-box {
+            width: 100%;
+            height: 310px;
+            border: 1px solid var(--gold);
+            border-radius: 10px;
+            overflow: hidden;
+            background-color: var(--card-bg);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            margin-bottom: 15px;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* 逆位效果：旋轉 180 度 */
+        .reversed { transform: rotate(180deg); }
+
+        .tarot-card-box img { width: 100%; height: 100%; object-fit: cover; }
+
+        .orientation-tag {
+            display: inline-block;
+            padding: 2px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        .upright-tag { background: #2e7d32; color: #fff; }
+        .reversed-tag { background: #c62828; color: #fff; }
+
+        .pos-label { color: var(--gold); font-size: 1em; font-weight: bold; margin-bottom: 5px; display: block; }
+        
+        /* 解說文字區塊 */
+        .explanation-box {
+            margin-top: 12px;
+            font-size: 0.9em;
+            color: #d1c4a5;
+            text-align: left;
+            line-height: 1.5;
+            border-top: 1px solid #555566;
+            padding-top: 8px;
+        }
+        .explanation-box strong {
+            color: var(--gold);
+        }
+
+        /* 洗牌動畫 */
+        @keyframes shuffling {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-10px) rotate(-2deg); }
+            75% { transform: translateX(10px) rotate(2deg); }
+            100% { transform: translateX(0); }
+        }
+        .is-shuffling { animation: shuffling 0.3s infinite; }
+
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h1>塔羅占卜</h1>
+    <button class="mode-btn" onclick="selectMode(1)">1 張模式</button>
+    <button class="mode-btn" onclick="selectMode(3)">3 張模式</button>
+    <button class="mode-btn" onclick="selectMode(6)">6 張模式</button>
+</div>
+
+<div id="main-content">
+    <h2 id="status-text">請選擇模式並開始洗牌</h2>
+    
+    <div class="action-area">
+        <button id="shuffle-btn" class="main-btn" onclick="startShuffle()" disabled>1. 點擊洗牌</button>
+        <button id="draw-btn" class="main-btn" onclick="executeDraw()">2. 翻開結果</button>
+    </div>
+
+    <div id="cards-container"></div>
+</div>
+
+<script>
+    // 初始化 78 張牌數據
+    const tarotDeck = [];
+    const majorNames = ["愚者", "魔術師", "女祭司", "皇后", "皇帝", "教皇", "戀人", "戰車", "力量", "隱士", "命運之輪", "正義", "倒吊人", "死神", "節制", "惡魔", "高塔", "星星", "月亮", "太陽", "審判", "世界"];
+    majorNames.forEach((name, i) => tarotDeck.push({ id: `tarot_${i}`, name, type: 'major' }));
+    
+    const suits = ["權杖", "聖杯", "寶劍", "錢幣"];
+    const ranks = ["Ace", "2", "3", "4", "5", "6", "7", "8", "9", "10", "侍者", "騎士", "皇后", "國王"];
+    let sId = 22;
+    suits.forEach(s => ranks.forEach(r => { tarotDeck.push({ id: `tarot_${sId++}`, name: s + r, type: s }); }));
+
+    // 牌意解說資料庫（為精簡程式碼，此處提供四大核心方向，系統會自動根據牌種組裝基本解說，亦可手動擴充詳細文本）
+    const tarotInterpretations = {
+        // 大阿爾克那核心牌意
+        "愚者": { upright: "新起點、冒險、自由、未知、無限可能。", reversed: "輕率、逃避、魯莽、不負責任、計畫受阻。" },
+        "魔術師": { upright: "創造力、專注、技能、行動力、萬事俱備。", reversed: "欺騙、才能誤用、缺乏計畫、意志力薄弱。" },
+        "女祭司": { upright: "直覺、潛意識、智慧、神祕、內省。", reversed: "膚淺、忽視直覺、理智與情感衝突、隱密曝光。" },
+        "皇后": { upright: "豐收、母愛、富足、自然、創造力與溫暖。", reversed: "過度控制、創造力受阻、依賴、缺乏安全感。" },
+        "皇帝": { upright: "權威、穩定、秩序、控制、領導力。", reversed: "專制、缺乏自律、無能、權力濫用。" },
+        "教皇": { upright: "傳統、精神引導、體制、導師、尋求認同。", reversed: "打破常規、教條主義、叛逆、不合時宜。" },
+        "戀人": { upright: "選擇、和諧、愛情、價值觀契合、夥伴關係。", reversed: "不和諧、錯誤抉擇、逃避責任、情感失衡。" },
+        "戰車": { upright: "意志力、勝利、前進、克服障礙、自律。", reversed: "失去方向、失控、挫折、侵略性過強。" },
+        "力量": { upright: "勇氣、內在力量、耐心、溫柔的掌控、克服恐懼。", reversed: "軟弱、自我懷疑、情緒失控、濫用暴力。" },
+        "隱士": { upright: "內省、尋求真理、孤獨、指引、謹慎。", reversed: "孤立、偏執、拒絕接受建議、虛度光陰。" },
+        "命運之輪": { upright: "好運、轉折點、命運、契機、順應變化。", reversed: "厄運、抗拒改變、運氣欠佳、陷入惡性循環。" },
+        "正義": { upright: "公平、誠實、因果報應、決策、客觀法律。", reversed: "不公、偏見、拒絕承擔責任、法律糾紛。" },
+        "倒吊人": { upright: "犧牲、換位思考、等待、放手、新的視角。", reversed: "無謂的犧牲、停滯不前、抗拒、急功近利。" },
+        "死神": { upright: "結束、轉變、新生、淘汰、不可抗拒的改變。", reversed: "恐懼改變、停滯、藕斷絲連、抗拒重生。" },
+        "節制": { upright: "平衡、調和、耐心、健康、溝通順暢。", reversed: "失衡、缺乏節制、衝突、無法融入。" },
+        "惡魔": { upright: "束縛、慾望、物質主義、成癮、陰暗面。", reversed: "擺脫束縛、覺醒、重獲自由、面對恐懼。" },
+        "高塔": { upright: "突變、幻滅、破壞、當頭棒喝、結構崩潰。", reversed: "危機爆發邊緣、恐懼改變、逃過一劫、餘震不斷。" },
+        "星星": { upright: "希望、信心、療癒、寧靜、精神啟示。", reversed: "失望、悲觀、失去信心、目標不切實際。" },
+        "月亮": { upright: "恐懼、不安、幻覺、隱瞞、直覺。", reversed: "真相大白、克服恐懼、誤解消除、陰霾漸散。" },
+        "太陽": { upright: "成功、快樂、活力、自信、光明與真理。", reversed: "短暫暗淡、過度自信、小挫折、熱情消退。" },
+        "審判": { upright: "覺醒、重大決定、召喚、因果清算、重生。", reversed: "猶豫不決、拒絕召喚、錯失良機、自我懷疑。" },
+        "世界": { upright: "圓滿、完成、成功、旅行、完美結局。", reversed: "未竟之業、遲來的成功、卡關、缺乏圓滿。" }
+    };
+
+    // 元素通用意義（用於自動生成小牌解說）
+    const suitMeanings = {
+        "權杖": { element: "火元素（行動、工作、熱情）", upright: "充滿動力、發展順利、充滿積極的能量。", reversed: "熱情消退、延遲、阻礙或動力誤用。" },
+        "聖杯": { element: "水元素（情感、人際、直覺）", upright: "情感豐沛、關係和諧、心靈感到滿足。", reversed: "情感波動、情緒化、關係疏離或失落。" },
+        "寶劍": { element: "風元素（思想、理智、傷害）", upright: "思考清晰、面臨挑戰、需要理智抉擇。", reversed: "思緒混亂、爭執、逃避溝通或受到言論傷害。" },
+        "錢幣": { element: "土元素（物質、金錢、現實）", upright: "財務穩定、務實發展、累積成果。", reversed: "財務問題、不穩定、投資失利或過度現實。" }
+    };
+
+    // 動態獲取解說內容
+    function getExplanation(cardName, isReversed) {
+        // 如果大牌有定義好的解說
+        if (tarotInterpretations[cardName]) {
+            return isReversed ? tarotInterpretations[cardName].reversed : tarotInterpretations[cardName].upright;
+        }
+        
+        // 如果是小牌（如：權杖Ace），組合元素含意
+        const suit = cardName.substring(0, 2);
+        const rank = cardName.substring(2);
+        const suitInfo = suitMeanings[suit];
+        
+        if (suitInfo) {
+            let baseText = `屬於 <strong>${suitInfo.element}</strong>。關於「${rank}」的狀態：`;
+            let detailText = isReversed ? suitInfo.reversed : suitInfo.upright;
+            return baseText + detailText + `（提示：可結合數字 ${rank} 與該元素特質進一步推論）`;
+        }
+        
+        return "靜心思考目前的處境，直覺會給予你答案。";
+    }
+
+    const spreadData = {
+        1: { labels: ["今日指引"] },
+        3: { labels: ["過去", "現在", "未來"] },
+        6: { labels: ["現況", "阻礙", "理想", "過去", "建議", "結果"] }
+    };
+
+    let selectedMode = null;
+
+    // 1. 選擇模式
+    function selectMode(mode) {
+        selectedMode = mode;
+        document.querySelectorAll('.mode-btn').forEach((b, i) => b.classList.toggle('active', (i+1 === (mode==1?1:(mode==3?2:3)))));
+        document.getElementById('status-text').innerText = `已選擇 ${mode} 張牌模式，請點擊洗牌`;
+        document.getElementById('shuffle-btn').disabled = false;
+        document.getElementById('draw-btn').style.display = 'none';
+        document.getElementById('cards-container').innerHTML = '';
+    }
+
+    // 2. 洗牌邏輯
+    function startShuffle() {
+        const btn = document.getElementById('shuffle-btn');
+        const status = document.getElementById('status-text');
+        btn.disabled = true;
+        status.innerText = "正在感應能量，洗牌中...";
+        
+        // 模擬洗牌動畫感
+        const container = document.getElementById('cards-container');
+        container.innerHTML = '<div class="is-shuffling" style="font-size: 50px;">🎴 🎴 🎴</div>';
+
+        setTimeout(() => {
+            status.innerText = "洗牌完成！請翻開牌陣";
+            document.getElementById('draw-btn').style.display = 'inline-block';
+            container.innerHTML = '';
+        }, 1500);
+    }
+
+    // 3. 抽牌與判斷正逆位
+    function executeDraw() {
+        const container = document.getElementById('cards-container');
+        container.innerHTML = '';
+        const labels = spreadData[selectedMode].labels;
+        
+        // 隨機抽取
+        const shuffled = [...tarotDeck].sort(() => 0.5 - Math.random());
+        const selected = shuffled.slice(0, selectedMode);
+
+        selected.forEach((card, i) => {
+            // 隨機正逆位 (50% 機率)
+            const isReversed = Math.random() > 0.5;
+            
+            // 取得對應解說
+            const explanation = getExplanation(card.name, isReversed);
+            
+            const wrapper = document.createElement('div');
+            wrapper.className = 'card-wrapper';
+            
+            wrapper.innerHTML = `
+                <span class="pos-label">${labels[i]}</span>
+                <div class="orientation-tag ${isReversed ? 'reversed-tag' : 'upright-tag'}">
+                    ${isReversed ? '逆位 (Reversed)' : '正位 (Upright)'}
+                </div>
+                <div class="tarot-card-box ${isReversed ? 'reversed' : ''}">
+                    <img src="images/tarot/${card.id}.jpg" onerror="this.src='https://placehold.co/180x310/2a2a35/d4af37?text=${card.name}'">
+                </div>
+                <div style="font-weight:bold; color:var(--gold); font-size:1.1em; margin-bottom:5px;">${card.name}</div>
+                <div class="explanation-box">
+                    <strong>牌意：</strong>${explanation}
+                </div>
+            `;
+            container.appendChild(wrapper);
+        });
+
+        document.getElementById('draw-btn').style.display = 'none';
+        document.getElementById('status-text').innerText = "占卜結果已顯現";
+    }
+</script>
+
+</body>
+</html>
